@@ -1,0 +1,6 @@
+{
+  "name": "SickleCell Community Africa",
+  "description": "A comprehensive mobile-first healthcare ecosystem for sickle cell patient tracking, appointments, medications, and crisis tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
