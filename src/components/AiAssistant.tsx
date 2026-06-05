@@ -133,7 +133,7 @@ Feel free to use one of the quick topic buttons below or type your own concern.`
 
     } catch (e: any) {
       console.error(e);
-      setErrorText('Could not connect to the AI endpoint. Please verify you have is connected to the dev server on port 3000 and have completed full-stack build configurations.');
+      setErrorText('Could not connect to the AI endpoint. Please ensure GEMINI_API_KEY is set in your project environment variables (Settings > Vars).');
     } finally {
       setIsSending(false);
     }
