@@ -38,11 +38,6 @@ async function startServer() {
       // Lazy initialisation of Google GenAI SDK to avoid module level load crashes
       const ai = new GoogleGenAI({
         apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build'
-          }
-        }
       });
 
       const systemInstruction = `You are the SCCA AI Assistant, an elite medical educator for Sickle Cell Disease (SCD) in Africa. Your task is to provide supportive, scientifically pristine, and highly specialized text answers.
@@ -57,7 +52,7 @@ Rules:
 7. Craft readable responses with bullet points and bolding, using compassionate language that respects African community context. Avoid clinical jargon without explaining it first.`;
 
       // Build chat history context
-      const contents = [];
+      const contents: Array<{role: 'user' | 'model', parts: Array<{text: string}>}> = [];
       if (chatHistory && Array.isArray(chatHistory)) {
         for (const msg of chatHistory) {
           contents.push({
@@ -74,7 +69,7 @@ Rules:
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.0-flash',
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
