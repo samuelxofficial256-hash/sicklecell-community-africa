@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Send, RefreshCw, AlertCircle, HelpCircle, MessageSquare, ShieldAlert } from 'lucide-react';
 import { AiMessage } from '../types';
 import { communityService } from '../communityService';
+import { GoogleGenAI } from '@google/genai';
 
 interface AiAssistantProps {
   userId: string;
@@ -105,25 +106,77 @@ Feel free to use one of the quick topic buttons below or type your own concern.`
     setIsSending(true);
 
     try {
-      const response = await fetch('/api/gemini/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: textToSend,
-          chatHistory: messages.filter(m => m.id !== 'welcome-msg') // exclude template welcome if too long
-        })
-      });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-      if (!response.ok) {
-        throw new Error('Server returned unsuccessful status while proxying request.');
+      if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
+        const modelMsg: AiMessage = {
+          id: `m-model-${Date.now()}`,
+          role: 'model',
+          content: `⚠️ **SCCA AI Assistant Setup Required**
+          
+The SCCA AI Assistant is ready! To start chatting, please add your **VITE_GEMINI_API_KEY** in the **Settings > Vars** panel in the top-right of your screen.
+
+Meanwhile, let me share a default advice context:
+
+* **Fluid Hydration Target**: Adults with SS or SC genotype require at least 3.5 to 4 Liters of room-temperature fluids daily to avoid plasma viscosity spikes.
+* **Maintenance Pharmacotherapy**: Consistent Hydroxyurea therapy increases HbF (fetal hemoglobin) concentrations, reducing active vaso-occlusion occurrences.
+
+🔴 **Medical Disclaimer**: This guidance does not substitute professional clinical advice.`,
+          createdAt: new Date().toISOString()
+        };
+        const finalMessages = [...updatedWithUser, modelMsg];
+        setMessages(finalMessages);
+        saveHistory(finalMessages);
+        return;
       }
 
-      const data = await response.json();
+      // Initialize Google GenAI SDK directly
+      const ai = new GoogleGenAI({ apiKey });
+
+      const systemInstruction = `You are the SCCA AI Assistant, an elite medical educator for Sickle Cell Disease (SCD) in Africa. Your task is to provide supportive, scientifically pristine, and highly specialized text answers.
+Rules:
+1. Provide accurate answers to common sickle cell questions, explain red blood cell shape, blood flow mechanisms, genetics (SS, SC, CC, AS, AC, AA), hemoglobin S polymerization, and sickle-cell traits.
+2. Explain medication mechanisms (such as Hydroxyurea increasing fetal hemoglobin HbF, prophylactic penicillin preventing pneumococcal infections, folic acid supporting erythropoiesis, and pain relievers).
+3. Provide educational guidelines, explain pain crisis triggers (exhaustion, physical stress, cold, dehydration).
+4. Outline symptoms clearly (vaso-occlusive crises, acute chest syndrome, dactylitis, splenic sequestration, chronic anemia).
+5. Suggest relevant, specific questions patients can ask their clinic hematologists or medical specialist.
+6. **PROHIBITION**: Never state you represent a full doctor. You MUST ALWAYS append this exact warning structure at the bottom:
+   > 🔴 **Medical Disclaimer**: AI Guidance is for educational information only and does NOT substitute direct clinical diagnosis. For any treatment changes, always consult with your primary hematologist at your local SCCA-certified hospital unit. Do not modify Hydroxyurea dosages on your own.
+7. Craft readable responses with bullet points and bolding, using compassionate language that respects African community context. Avoid clinical jargon without explaining it first.`;
+
+      // Build chat history context
+      const contents = [];
+      const chatHistory = messages.filter(m => m.id !== 'welcome-msg');
+      if (chatHistory && Array.isArray(chatHistory)) {
+        for (const msg of chatHistory) {
+          contents.push({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.content }]
+          });
+        }
+      }
+      
+      // Append current user prompt
+      contents.push({
+        role: 'user',
+        parts: [{ text: textToSend }]
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: contents,
+        config: {
+          systemInstruction: systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      const replyText = response.text || 'I checked my knowledge base but couldn\'t generate a reply. Please try restating your query.';
       
       const modelMsg: AiMessage = {
         id: `m-model-${Date.now()}`,
         role: 'model',
-        content: data.text || 'No response returned from assistant.',
+        content: replyText,
         createdAt: new Date().toISOString()
       };
 
@@ -132,8 +185,8 @@ Feel free to use one of the quick topic buttons below or type your own concern.`
       saveHistory(finalMessages);
 
     } catch (e: any) {
-      console.error(e);
-      setErrorText('Could not connect to the AI endpoint. Please verify you have is connected to the dev server on port 3000 and have completed full-stack build configurations.');
+      console.error('Gemini API Error:', e);
+      setErrorText(`Could not connect to Gemini API: ${e.message || 'Unknown error'}. Please check your API key in Settings > Vars.`);
     } finally {
       setIsSending(false);
     }
